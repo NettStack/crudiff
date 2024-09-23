@@ -22,13 +22,31 @@ export interface Delete<TValue> {
   value: TValue;
 }
 
+export interface Move {
+  type: "move";
+  index: number;
+}
+
+export interface EditAndMove<TValue extends Record<FieldKey, any>> {
+  type: "edit+move";
+  value: Diff<TValue>;
+  index: number;
+}
+
 export type Change<TValue> = TValue extends ValueType ? Assign<TValue> : Create<TValue> | Edit<TValue> | Delete<TValue>;
 
 export type RecordDiff<TRecord extends Record<FieldKey, any>> = {
   [TKey in keyof TRecord]?: Change<TRecord[TKey]>;
 };
 
-export type ArrayDiff<TRecord extends Record<FieldKey, any>> = Map<number, Change<TRecord>>;
+export type ArrayItemChange<TRecord extends Record<FieldKey, any>> =
+  | Create<TRecord>
+  | Edit<TRecord>
+  | Move
+  | EditAndMove<TRecord>
+  | Delete<TRecord>;
+
+export type ArrayDiff<TRecord extends Record<FieldKey, any>> = Map<number, ArrayItemChange<TRecord>>;
 
 export type Diff<TValue> = TValue extends Record<FieldKey, infer _>
   ? RecordDiff<TValue>
