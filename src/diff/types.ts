@@ -1,14 +1,12 @@
-export type ID = string | number;
-export type FieldKey = string | number | symbol;
-export type ValueType = string | number | bigint | symbol | null | undefined | Function | Date;
+import { FieldKey } from "@/utilities/types";
 
 export interface Assign<TValue> {
   type: "assign";
   value: TValue;
 }
 
-export interface Create<TValue> {
-  type: "create";
+export interface Add<TValue> {
+  type: "add";
   value: TValue;
 }
 
@@ -17,36 +15,40 @@ export interface Edit<TValue> {
   value: Diff<TValue>;
 }
 
-export interface Delete<TValue> {
-  type: "delete";
+export interface Remove<TValue> {
+  type: "remove";
   value: TValue;
 }
 
-export interface Move {
+export interface Move<TKey extends FieldKey> {
   type: "move";
-  index: number;
+  key: TKey;
 }
 
-export interface EditAndMove<TValue extends Record<FieldKey, any>> {
+export interface EditAndMove<TValue, TKey extends FieldKey> {
   type: "edit+move";
   value: Diff<TValue>;
-  index: number;
+  key: TKey;
 }
 
-export type Change<TValue> = TValue extends ValueType ? Assign<TValue> : Create<TValue> | Edit<TValue> | Delete<TValue>;
+export type RecordFieldChange<TValue> = TValue extends Array<infer _>
+  ? Add<TValue> | Edit<TValue> | Remove<TValue>
+  : TValue extends Record<FieldKey, infer _>
+  ? Add<TValue> | Edit<TValue> | Remove<TValue> | Move<FieldKey> | EditAndMove<TValue, FieldKey>
+  : Assign<TValue>;
 
 export type RecordDiff<TRecord extends Record<FieldKey, any>> = {
-  [TKey in keyof TRecord]?: Change<TRecord[TKey]>;
+  [TKey in keyof TRecord]?: RecordFieldChange<TRecord[TKey]>[];
 };
 
 export type ArrayItemChange<TRecord extends Record<FieldKey, any>> =
-  | Create<TRecord>
+  | Add<TRecord>
   | Edit<TRecord>
-  | Move
-  | EditAndMove<TRecord>
-  | Delete<TRecord>;
+  | Move<number>
+  | EditAndMove<TRecord, number>
+  | Remove<TRecord>;
 
-export type ArrayDiff<TRecord extends Record<FieldKey, any>> = Map<number, ArrayItemChange<TRecord>>;
+export type ArrayDiff<TRecord extends Record<FieldKey, any>> = Map<number, ArrayItemChange<TRecord>[]>;
 
 export type Diff<TValue> = TValue extends Record<FieldKey, infer _>
   ? RecordDiff<TValue>

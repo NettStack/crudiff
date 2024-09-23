@@ -1,5 +1,5 @@
-import { ValueType } from "@/diff/types";
 import { isValueType } from "@/utilities/reflection";
+import { ValueType } from "@/utilities/types";
 
 describe("Reflection", () => {
   describe("isValueType", () => {
