@@ -1,0 +1,21 @@
+{
+  "name": "nectar-diff-kit",
+  "version": "1.0.0",
+  "description": "Utilities for calculating differences between objects.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "keywords": [
+    "diff"
+  ],
+  "author": "Thumbani Mokgwadi",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^29.5.13",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.2"
+  }
+}
