@@ -10,5 +10,12 @@ export type WithTypeField<TRecord extends Record<FieldKey, any> = {}> = WithFiel
 export type WithIdField<TRecord extends Record<FieldKey, any> = {}> = WithField<TRecord, typeof idFieldKey, ID>;
 export type WithDiffFields<TRecord extends Record<FieldKey, any> = {}> = WithTypeField<TRecord> & WithIdField<TRecord>;
 
+export type ValueOf<TRecord extends Record<FieldKey, any>> = TRecord[keyof TRecord];
+
+export type KeyOfMatchedType<TRecord extends Record<FieldKey, any>, TValue> = Exclude<
+  keyof TRecord,
+  ValueOf<{ [TKey2 in keyof TRecord]: TRecord[TKey2] extends TValue ? undefined : TKey2 }>
+>;
+
 const typeFieldKey: "__type" = "__type";
 const idFieldKey: "__id" = "__id";

@@ -1,5 +1,4 @@
 import { FieldKey, ID } from "@/utilities/types";
-import * as Yup from "yup";
 import { isValueType } from "../utilities/reflection";
 import {
   Add,
@@ -8,6 +7,7 @@ import {
   Assign,
   Diff,
   Edit,
+  EditAndMove,
   Move,
   RecordDiff,
   RecordFieldChange,
@@ -17,17 +17,11 @@ import {
 export type SchemaId = string;
 
 export interface ExecutionOptions {
-  getId<TValue>(value: TValue): ID;
-  getSchemaKey<TValue>(value: TValue): SchemaId;
-  schemas: Map<SchemaId, any>;
+  getId(value: unknown): ID;
+  getKeys(value: unknown): string[];
 }
 
 export default class Executor {
-  getSchema<TRecord extends Record<FieldKey, any>>(value: TRecord): Yup.ObjectSchema<TRecord> | undefined {
-    const key = this.options.getSchemaKey(value);
-    return key == null ? undefined : this.options.schemas.get(key);
-  }
-
   getDiff<TValue>(initial: TValue, current: TValue): Diff<TValue> | undefined {
     if (isValueType(initial) || isValueType(current)) throw new Error("Value types not allowed.");
 
@@ -40,98 +34,179 @@ export default class Executor {
     ) as Diff<TValue> | undefined;
   }
 
-  getRecordsDiff<TRecord extends Record<FieldKey, any>>(
+  private getRecordsDiff<TRecord extends Record<FieldKey, unknown>>(
     initial: TRecord,
     current: TRecord
   ): RecordDiff<TRecord> | undefined {
-    if (initial === current || (initial == null && current == null)) return undefined;
+    if (initial === current) return undefined;
 
-    const schema = this.getSchema(initial);
+    const keys: (keyof TRecord)[] = this.options.getKeys(initial);
 
-    if (!schema) throw new Error(`Schema not found for: ${JSON.stringify(initial)}.`);
-
-    // const initialLookup = new Map<ID, FieldKey>();
-    // const currentLookup = new Map<ID, FieldKey>();
-
-    // Object.entries(initial).forEach(([key, value]) => {
-    //   const id = this.options.getId(value);
-
-    //   if (id == null) return;
-    //   if (initialLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(initial)}.`);
-
-    //   initialLookup.set(id, key);
-    // });
-
-    // Object.entries(current).forEach(([key, value]) => {
-    //   const id = this.options.getId(value);
-
-    //   if (id == null) return;
-    //   if (currentLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(current)}.`);
-
-    //   currentLookup.set(id, key);
-    // });
+    if (!keys.length) throw new Error(`Keys not returned for: ${JSON.stringify(initial)}.`);
 
     const diff: RecordDiff<TRecord> = {};
 
-    for (const key in schema.fields) {
-      if (key in initial) {
-        const initialValue = initial[key];
+    const initialLookup = new Map<ID, keyof TRecord>();
+    const currentLookup = new Map<ID, keyof TRecord>();
 
-        if (!(key in current)) {
+    for (const key of keys) {
+      let value: TRecord[typeof key];
+
+      value = initial[key];
+
+      if (!(isValueType(value) || Array.isArray(value))) {
+        const id = this.options.getId(value);
+
+        if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(value)}.`);
+        if (initialLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
+
+        initialLookup.set(id, key);
+      }
+
+      value = current[key];
+
+      if (!(isValueType(value) || Array.isArray(value))) {
+        const id = this.options.getId(value);
+
+        if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(value)}.`);
+        if (currentLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
+
+        currentLookup.set(id, key);
+      }
+    }
+
+    initialLookup.forEach((initialKey, id) => {
+      const currentKey = currentLookup.get(id);
+
+      if (currentKey == null) {
+        const remove: Remove<TRecord[typeof initialKey]> = {
+          type: "remove",
+          value: initial[initialKey],
+        };
+
+        includeRecordChange(diff, initialKey, remove as RecordFieldChange<TRecord, typeof initialKey>);
+      } else {
+        let edit: Edit<TRecord[typeof initialKey]> | undefined;
+        let move: Move<typeof currentKey> | undefined;
+
+        if (initialKey !== currentKey) move = { type: "move", key: currentKey };
+
+        const valueDiff = this.getDiff(initial[initialKey], current[currentKey]);
+
+        if (valueDiff) edit = { type: "edit", value: valueDiff };
+
+        if (edit && move) {
+          const editAndMove: EditAndMove<TRecord[typeof initialKey], typeof currentKey> = {
+            type: "edit+move",
+            key: move.key,
+            value: edit.value,
+          };
+
+          includeRecordChange(diff, initialKey, editAndMove as RecordFieldChange<TRecord, typeof initialKey>);
+        } else if (edit) includeRecordChange(diff, initialKey, edit as RecordFieldChange<TRecord, typeof initialKey>);
+        else if (move) includeRecordChange(diff, initialKey, move as RecordFieldChange<TRecord, typeof initialKey>);
+      }
+    });
+
+    currentLookup.forEach((currentKey, id) => {
+      if (!initialLookup.has(id)) {
+        const add: Add<TRecord[typeof currentKey]> = {
+          type: "add",
+          value: current[currentKey],
+        };
+
+        includeRecordChange(diff, currentKey, add as RecordFieldChange<TRecord, typeof currentKey>);
+      }
+    });
+
+    for (const key of keys) {
+      const initialValue = initial[key];
+      const currentValue = current[key];
+
+      if (initialValue === currentValue || (initialValue == null && currentValue == null)) continue;
+
+      if (initialValue != null) {
+        if (currentValue == null) {
           if (isValueType(initialValue)) {
-            includeRecordChange(diff, key, {
+            const assign: Assign<TRecord[typeof key]> = {
               type: "assign",
-              value: undefined,
-            } as Assign<typeof initialValue> as RecordFieldChange<typeof initialValue>);
-          } else {
-            includeRecordChange(diff, key, {
+              value: current[key],
+            };
+
+            includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, keyof TRecord>);
+          } else if (!diff[key]?.find((e) => e.type.includes("move"))) {
+            const remove: Remove<TRecord[typeof key]> = {
               type: "remove",
               value: initialValue,
-            } as Remove<typeof initialValue> as RecordFieldChange<typeof initialValue>);
+            };
+
+            includeRecordChange(diff, key, remove as RecordFieldChange<TRecord, typeof key>);
           }
         } else {
           if (isValueType(initialValue)) {
-            const currentValue = current[key];
+            const assign: Assign<TRecord[typeof key]> = {
+              type: "assign",
+              value: currentValue,
+            };
 
-            if (initialValue !== currentValue)
-              includeRecordChange(diff, key, {
-                type: "assign",
-                value: currentValue,
-              } as Assign<typeof initialValue> as RecordFieldChange<typeof initialValue>);
+            includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, typeof key>);
+          } else if (diff[key]?.find((e) => e.type.includes("move"))) {
+            const id = this.options.getId(currentValue);
+
+            if (initialLookup.has(id)) continue;
+
+            const add: Add<TRecord[typeof key]> = {
+              type: "add",
+              value: currentValue,
+            };
+
+            includeRecordChange(diff, key, add as RecordFieldChange<TRecord, typeof key>);
           } else {
-            const valueDiff = this.getDiff(initialValue, current[key]);
+            const valueDiff = this.getDiff(initialValue, currentValue);
 
-            if (valueDiff)
-              includeRecordChange(diff, key, {
+            if (valueDiff) {
+              const edit: Edit<TRecord[typeof key]> = {
                 type: "edit",
                 value: valueDiff,
-              } as Edit<typeof initialValue> as RecordFieldChange<typeof initialValue>);
+              };
+
+              includeRecordChange(diff, key, edit as RecordFieldChange<TRecord, typeof key>);
+            }
           }
         }
-      } else if (key in current) {
-        const currentValue = current[key];
-
-        if (isValueType(currentValue))
-          includeRecordChange(diff, key, {
+      } else if (currentValue != null) {
+        if (isValueType(currentValue)) {
+          const assign: Assign<TRecord[typeof key]> = {
             type: "assign",
             value: currentValue,
-          } as Assign<typeof currentValue> as RecordFieldChange<typeof currentValue>);
-        else
-          includeRecordChange(diff, key, {
+          };
+
+          includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, typeof key>);
+        } else {
+          if (!Array.isArray(currentValue)) {
+            const id = this.options.getId(currentValue);
+
+            if (initialLookup.has(id)) continue;
+          }
+
+          const add: Add<TRecord[typeof key]> = {
             type: "add",
             value: currentValue,
-          } as Add<typeof currentValue> as RecordFieldChange<typeof currentValue>);
+          };
+
+          includeRecordChange(diff, key, add as RecordFieldChange<TRecord, typeof key>);
+        }
       }
     }
 
     return Object.keys(diff).length ? diff : undefined;
   }
 
-  getArraysDiff<TRecord extends Record<FieldKey, any>>(
+  private getArraysDiff<TRecord extends Record<FieldKey, unknown>>(
     initial: TRecord[],
     current: TRecord[]
   ): ArrayDiff<TRecord> | undefined {
-    if (initial === current || (initial == null && current == null)) return undefined;
+    if (initial === current) return undefined;
 
     const initialLookup = new Map<ID, number>();
     const currentLookup = new Map<ID, number>();
@@ -139,8 +214,8 @@ export default class Executor {
     initial.forEach((value, index) => {
       const id = this.options.getId(value);
 
-      if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(initial)}.`);
-      if (initialLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(initial)}.`);
+      if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(value)}.`);
+      if (initialLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
 
       initialLookup.set(id, index);
     });
@@ -148,8 +223,8 @@ export default class Executor {
     current.forEach((value, index) => {
       const id = this.options.getId(value);
 
-      if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(current)}.`);
-      if (currentLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(current)}.`);
+      if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(value)}.`);
+      if (currentLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
 
       currentLookup.set(id, index);
     });
@@ -191,7 +266,7 @@ export default class Executor {
   constructor(readonly options: ExecutionOptions) {}
 }
 
-function includeArrayChange<TRecord extends Record<FieldKey, any>>(
+function includeArrayChange<TRecord extends Record<FieldKey, unknown>>(
   diff: ArrayDiff<TRecord>,
   index: number,
   change: ArrayItemChange<TRecord>
@@ -203,14 +278,14 @@ function includeArrayChange<TRecord extends Record<FieldKey, any>>(
   changeSet.push(change);
 }
 
-function includeRecordChange<TRecord extends Record<FieldKey, any>>(
+function includeRecordChange<TRecord extends Record<FieldKey, unknown>>(
   diff: RecordDiff<TRecord>,
   key: keyof TRecord,
-  change: RecordFieldChange<TRecord[typeof key]>
+  change: RecordFieldChange<TRecord, typeof key>
 ) {
   let changeSet = diff[key];
 
   if (changeSet == null) diff[key] = changeSet = [];
 
-  changeSet.push(change);
+  if (!changeSet.find((e) => e.type === change.type)) changeSet.push(change);
 }

@@ -1,4 +1,4 @@
-import { FieldKey } from "@/utilities/types";
+import { FieldKey, KeyOfMatchedType, ValueType } from "@/utilities/types";
 
 export interface Assign<TValue> {
   type: "assign";
@@ -31,24 +31,32 @@ export interface EditAndMove<TValue, TKey extends FieldKey> {
   key: TKey;
 }
 
-export type RecordFieldChange<TValue> = TValue extends Array<infer _>
-  ? Add<TValue> | Edit<TValue> | Remove<TValue>
-  : TValue extends Record<FieldKey, infer _>
-  ? Add<TValue> | Edit<TValue> | Remove<TValue> | Move<FieldKey> | EditAndMove<TValue, FieldKey>
-  : Assign<TValue>;
+export type RecordFieldChange<
+  TRecord extends Record<FieldKey, unknown>,
+  TKey extends keyof TRecord
+> = TRecord[TKey] extends ValueType
+  ? Assign<TRecord[TKey]>
+  : TRecord[TKey] extends Array<infer _>
+  ? Add<TRecord[TKey]> | Edit<TRecord[TKey]> | Remove<TRecord[TKey]>
+  :
+      | Add<TRecord[TKey]>
+      | Edit<TRecord[TKey]>
+      | Remove<TRecord[TKey]>
+      | Move<KeyOfMatchedType<TRecord, TRecord[TKey]>>
+      | EditAndMove<TRecord[TKey], KeyOfMatchedType<TRecord, TRecord[TKey]>>;
 
-export type RecordDiff<TRecord extends Record<FieldKey, any>> = {
-  [TKey in keyof TRecord]?: RecordFieldChange<TRecord[TKey]>[];
+export type RecordDiff<TRecord extends Record<FieldKey, unknown>> = {
+  [TKey in keyof TRecord]?: RecordFieldChange<TRecord, TKey>[];
 };
 
-export type ArrayItemChange<TRecord extends Record<FieldKey, any>> =
+export type ArrayItemChange<TRecord extends Record<FieldKey, unknown>> =
   | Add<TRecord>
   | Edit<TRecord>
   | Move<number>
   | EditAndMove<TRecord, number>
   | Remove<TRecord>;
 
-export type ArrayDiff<TRecord extends Record<FieldKey, any>> = Map<number, ArrayItemChange<TRecord>[]>;
+export type ArrayDiff<TRecord extends Record<FieldKey, unknown>> = Map<number, ArrayItemChange<TRecord>[]>;
 
 export type Diff<TValue> = TValue extends Record<FieldKey, infer _>
   ? RecordDiff<TValue>
