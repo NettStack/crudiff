@@ -2,7 +2,11 @@
   "name": "nectar-forms",
   "version": "1.0.0",
   "description": "Utilities for calculating differences between objects.",
-  "main": "src/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./utilities": "./dist/utilities/index.js",
+    "./diff": "./dist/diff/index.js"
+  },
   "scripts": {
     "test": "jest"
   },
