@@ -1,2 +1,3 @@
+export * from "./Executor";
 export { default as Executor } from "./Executor";
-export * as Types from "./types";
+export * from "./types";

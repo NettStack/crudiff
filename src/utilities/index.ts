@@ -1,1 +1,2 @@
-export * as Reflection from "./reflection";
+export * from "./reflection";
+export * from "./types";

@@ -1,7 +1,7 @@
 {
-  "name": "nectar-forms",
+  "name": "formrite",
   "version": "1.0.0",
-  "description": "Utilities for calculating differences between objects.",
+  "description": "A lightweight utility for common form operations.",
   "exports": {
     ".": "./dist/index.js",
     "./utilities": "./dist/utilities/index.js",
