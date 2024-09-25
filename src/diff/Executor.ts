@@ -46,10 +46,22 @@ export default class Executor {
 
     const diff: RecordDiff<TRecord> = {};
 
+    this.getRecordFieldsChanges<TRecord>(keys, initial, current, diff);
+    this.getNonRecordFieldsChanges<TRecord>(keys, initial, current, diff);
+
+    return Object.keys(diff).length ? diff : undefined;
+  }
+
+  private getRecordFieldsChanges<TRecord extends Record<FieldKey, unknown>>(
+    keys: (keyof TRecord)[],
+    initial: TRecord,
+    current: TRecord,
+    diff: RecordDiff<TRecord>
+  ) {
     const initialLookup = new Map<ID, keyof TRecord>();
     const currentLookup = new Map<ID, keyof TRecord>();
 
-    for (const key of keys) {
+    keys.forEach((key) => {
       let value: TRecord[typeof key];
 
       value = initial[key];
@@ -73,7 +85,7 @@ export default class Executor {
 
         currentLookup.set(id, key);
       }
-    }
+    });
 
     initialLookup.forEach((initialKey, id) => {
       const currentKey = currentLookup.get(id);
@@ -118,12 +130,19 @@ export default class Executor {
         includeRecordChange(diff, currentKey, add as RecordFieldChange<TRecord, typeof currentKey>);
       }
     });
+  }
 
-    for (const key of keys) {
+  private getNonRecordFieldsChanges<TRecord extends Record<FieldKey, unknown>>(
+    keys: (keyof TRecord)[],
+    initial: TRecord,
+    current: TRecord,
+    diff: RecordDiff<TRecord>
+  ) {
+    keys.forEach((key) => {
       const initialValue = initial[key];
       const currentValue = current[key];
 
-      if (initialValue === currentValue || (initialValue == null && currentValue == null)) continue;
+      if (initialValue === currentValue || (initialValue == null && currentValue == null)) return;
 
       if (initialValue != null) {
         if (currentValue == null) {
@@ -134,7 +153,7 @@ export default class Executor {
             };
 
             includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, keyof TRecord>);
-          } else if (!diff[key]?.find((e) => e.type.includes("move"))) {
+          } else if (Array.isArray(initialValue)) {
             const remove: Remove<TRecord[typeof key]> = {
               type: "remove",
               value: initialValue,
@@ -150,18 +169,7 @@ export default class Executor {
             };
 
             includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, typeof key>);
-          } else if (diff[key]?.find((e) => e.type.includes("move"))) {
-            const id = this.options.getId(currentValue);
-
-            if (initialLookup.has(id)) continue;
-
-            const add: Add<TRecord[typeof key]> = {
-              type: "add",
-              value: currentValue,
-            };
-
-            includeRecordChange(diff, key, add as RecordFieldChange<TRecord, typeof key>);
-          } else {
+          } else if (Array.isArray(initialValue)) {
             const valueDiff = this.getDiff(initialValue, currentValue);
 
             if (valueDiff) {
@@ -182,13 +190,7 @@ export default class Executor {
           };
 
           includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, typeof key>);
-        } else {
-          if (!Array.isArray(currentValue)) {
-            const id = this.options.getId(currentValue);
-
-            if (initialLookup.has(id)) continue;
-          }
-
+        } else if (Array.isArray(currentValue)) {
           const add: Add<TRecord[typeof key]> = {
             type: "add",
             value: currentValue,
@@ -197,9 +199,7 @@ export default class Executor {
           includeRecordChange(diff, key, add as RecordFieldChange<TRecord, typeof key>);
         }
       }
-    }
-
-    return Object.keys(diff).length ? diff : undefined;
+    });
   }
 
   private getArraysDiff<TRecord extends Record<FieldKey, unknown>>(
