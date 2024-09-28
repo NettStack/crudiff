@@ -1,7 +1,8 @@
 {
-  "name": "formrite",
+  "name": "crudiff",
   "version": "1.0.0",
-  "description": "A lightweight utility for common form operations.",
+  "description": "A CRUD-oriented JSON diffing utility.",
+  "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./utilities": "./dist/utilities/index.js",

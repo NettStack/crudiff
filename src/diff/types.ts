@@ -1,4 +1,4 @@
-import { FieldKey, KeyOfMatchedType, ValueType } from "@/utilities/types";
+import { RecordKey, KeyOf, ValueType } from "@/utilities/types";
 
 export interface Assign<TValue> {
   type: "assign";
@@ -20,19 +20,19 @@ export interface Remove<TValue> {
   value: TValue;
 }
 
-export interface Move<TKey extends FieldKey> {
+export interface Move<TKey extends RecordKey> {
   type: "move";
   key: TKey;
 }
 
-export interface EditAndMove<TValue, TKey extends FieldKey> {
+export interface EditAndMove<TValue, TKey extends RecordKey> {
   type: "edit+move";
   value: Diff<TValue>;
   key: TKey;
 }
 
 export type RecordFieldChange<
-  TRecord extends Record<FieldKey, unknown>,
+  TRecord extends Record<RecordKey, unknown>,
   TKey extends keyof TRecord
 > = TRecord[TKey] extends ValueType
   ? Assign<TRecord[TKey]>
@@ -42,26 +42,26 @@ export type RecordFieldChange<
       | Add<TRecord[TKey]>
       | Edit<TRecord[TKey]>
       | Remove<TRecord[TKey]>
-      | Move<KeyOfMatchedType<TRecord, TRecord[TKey]>>
-      | EditAndMove<TRecord[TKey], KeyOfMatchedType<TRecord, TRecord[TKey]>>;
+      | Move<KeyOf<TRecord, TRecord[TKey]>>
+      | EditAndMove<TRecord[TKey], KeyOf<TRecord, TRecord[TKey]>>;
 
-export type RecordDiff<TRecord extends Record<FieldKey, unknown>> = {
+export type RecordDiff<TRecord extends Record<RecordKey, unknown>> = {
   [TKey in keyof TRecord]?: RecordFieldChange<TRecord, TKey>[];
 };
 
-export type ArrayItemChange<TRecord extends Record<FieldKey, unknown>> =
+export type ArrayItemChange<TRecord extends Record<RecordKey, unknown>> =
   | Add<TRecord>
   | Edit<TRecord>
   | Move<number>
   | EditAndMove<TRecord, number>
   | Remove<TRecord>;
 
-export type ArrayDiff<TRecord extends Record<FieldKey, unknown>> = Map<number, ArrayItemChange<TRecord>[]>;
+export type ArrayDiff<TRecord extends Record<RecordKey, unknown>> = Map<number, ArrayItemChange<TRecord>[]>;
 
-export type Diff<TValue> = TValue extends Record<FieldKey, infer _>
+export type Diff<TValue> = TValue extends Record<RecordKey, infer _>
   ? RecordDiff<TValue>
   : TValue extends Array<infer TRecord>
-  ? TRecord extends Record<FieldKey, infer _>
+  ? TRecord extends Record<RecordKey, infer _>
     ? ArrayDiff<TRecord>
     : never
   : never;

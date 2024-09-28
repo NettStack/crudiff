@@ -1,4 +1,4 @@
-import { FieldKey, ID } from "@/utilities/types";
+import { RecordKey, ID } from "@/utilities/types";
 import { isValueType } from "../utilities/reflection";
 import {
   Add,
@@ -34,7 +34,7 @@ export default class Executor {
     ) as Diff<TValue> | undefined;
   }
 
-  private getRecordsDiff<TRecord extends Record<FieldKey, unknown>>(
+  private getRecordsDiff<TRecord extends Record<RecordKey, unknown>>(
     initial: TRecord,
     current: TRecord
   ): RecordDiff<TRecord> | undefined {
@@ -52,7 +52,7 @@ export default class Executor {
     return Object.keys(diff).length ? diff : undefined;
   }
 
-  private getRecordFieldsChanges<TRecord extends Record<FieldKey, unknown>>(
+  private getRecordFieldsChanges<TRecord extends Record<RecordKey, unknown>>(
     keys: (keyof TRecord)[],
     initial: TRecord,
     current: TRecord,
@@ -132,7 +132,7 @@ export default class Executor {
     });
   }
 
-  private getNonRecordFieldsChanges<TRecord extends Record<FieldKey, unknown>>(
+  private getNonRecordFieldsChanges<TRecord extends Record<RecordKey, unknown>>(
     keys: (keyof TRecord)[],
     initial: TRecord,
     current: TRecord,
@@ -202,7 +202,7 @@ export default class Executor {
     });
   }
 
-  private getArraysDiff<TRecord extends Record<FieldKey, unknown>>(
+  private getArraysDiff<TRecord extends Record<RecordKey, unknown>>(
     initial: TRecord[],
     current: TRecord[]
   ): ArrayDiff<TRecord> | undefined {
@@ -266,7 +266,7 @@ export default class Executor {
   constructor(readonly options: ExecutionOptions) {}
 }
 
-function includeArrayChange<TRecord extends Record<FieldKey, unknown>>(
+function includeArrayChange<TRecord extends Record<RecordKey, unknown>>(
   diff: ArrayDiff<TRecord>,
   index: number,
   change: ArrayItemChange<TRecord>
@@ -278,7 +278,7 @@ function includeArrayChange<TRecord extends Record<FieldKey, unknown>>(
   changeSet.push(change);
 }
 
-function includeRecordChange<TRecord extends Record<FieldKey, unknown>>(
+function includeRecordChange<TRecord extends Record<RecordKey, unknown>>(
   diff: RecordDiff<TRecord>,
   key: keyof TRecord,
   change: RecordFieldChange<TRecord, typeof key>
