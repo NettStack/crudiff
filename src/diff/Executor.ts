@@ -1,5 +1,5 @@
-import { RecordKey, ID } from "@/utilities/types";
-import { isValueType } from "../utilities/reflection";
+import { isValueType } from "@/utilities/reflection";
+import { ID, RecordKey } from "@/utilities/types";
 import {
   Add,
   ArrayDiff,

@@ -1,6 +1,6 @@
 import { Executor } from "@/diff";
 import { Add, ArrayItemChange, Edit, EditAndMove, Move, RecordFieldChange, Remove } from "@/diff/types";
-import { KeyOfMatchedType, WithDiffFields } from "@/utilities/types";
+import { ID, KeyOf } from "@/utilities/types";
 
 describe("Executor", () => {
   const typeName = "TestRecord";
@@ -339,8 +339,10 @@ type TestRecord = {
   array4?: TestRecord[];
 };
 
-type DiffTestRecord = WithDiffFields<TestRecord> &
-  Omit<TestRecord, KeyOfMatchedType<TestRecord, TestRecord> | KeyOfMatchedType<TestRecord, TestRecord[]>> & {
+type DiffTestRecord = TestRecord & { __id: ID; __type: string } & Omit<
+    TestRecord,
+    KeyOf<TestRecord, TestRecord> | KeyOf<TestRecord, TestRecord[]>
+  > & {
     record1?: DiffTestRecord;
     record2?: DiffTestRecord;
     record3?: DiffTestRecord;

@@ -20,7 +20,10 @@
     "dist/**/*"
   ],
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "build": "tsc -b --clean && tsc && tsc-alias",
+    "prepack": "npm run test && npm run build",
+    "publish": "npm publish --access public"
   },
   "keywords": [
     "CRUD",
@@ -33,6 +36,7 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.10",
     "typescript": "^5.6.2"
   }
 }
