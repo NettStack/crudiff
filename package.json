@@ -1,6 +1,6 @@
 {
   "name": "@nettstack/crudiff",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A CRUD-oriented JSON diffing utility.",
   "repository": {
     "type": "git",
@@ -23,8 +23,7 @@
     "test": "jest",
     "badge": "jest-coverage-badges output ./badges/coverage && git add ./badges",
     "build": "tsc -b --clean && tsc && tsc-alias",
-    "prepack": "npm run test && npm run build",
-    "publish": "npm publish --access public"
+    "prepack": "npm run test && npm run build"
   },
   "pre-commit": [
     "test",
