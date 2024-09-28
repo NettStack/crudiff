@@ -6,7 +6,7 @@ where data synchronization and change tracking are essential.
 
 ![branches-badge](./badges/coverage/badge-branches.svg) ![functions-badge](./badges/coverage/badge-functions.svg) ![lines-badge](./badges/coverage/badge-lines.svg) ![statements-badge](./badges/coverage/badge-statements.svg)
 
-#### Key Features
+### Key Features
 
 1. **Change Detection**:
 
@@ -20,9 +20,9 @@ where data synchronization and change tracking are essential.
 
     Handle nested JSON structures, ensuring that even deeply nested fields are accurately compared and reported.
 
-#### Usage Example
+### Usage Example
 
-##### Differences between records
+#### Differences between records
 
 ```js
 import { Executor } from "@nettstack/crudiff/diff";
@@ -194,7 +194,7 @@ console.log(JSON.stringify(diff, null, 4));
 // }
 ```
 
-##### Differences between arrays
+#### Differences between arrays
 
 ```js
 const initial = [
@@ -286,6 +286,6 @@ console.log(JSON.stringify([...Array.from(diff!.entries())], null, 4));
 
 ```
 
-#### Documentation
+### Documentation
 
 *Coming soon...*
