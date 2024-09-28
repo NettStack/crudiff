@@ -1,18 +1,30 @@
 {
-  "name": "crudiff",
+  "name": "@nettstack/crudiff",
   "version": "1.0.0",
   "description": "A CRUD-oriented JSON diffing utility.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NettStack/crudiff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/NettStack/crudiff/issues"
+  },
+  "homepage": "https://github.com/NettStack/crudiff#readme",
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./utilities": "./dist/utilities/index.js",
     "./diff": "./dist/diff/index.js"
   },
+  "files": [
+    "dist/**/*"
+  ],
   "scripts": {
     "test": "jest"
   },
   "keywords": [
-    "diff"
+    "CRUD",
+    "Diff"
   ],
   "author": "Thumbani Mokgwadi",
   "license": "ISC",
