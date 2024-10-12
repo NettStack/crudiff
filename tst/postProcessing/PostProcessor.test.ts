@@ -113,9 +113,12 @@ describe("PostProcessor", () => {
     });
 
     it("detects when there are no changes", () => {
-      const entity = {};
+      const entity: Entity = { __type: typeName, __id: 1 };
       const array: any[] = [];
       expect(processor.getChanges(entity, entity)).toBeFalsy();
+      expect(
+        processor.getChanges({ ...entity, number1: undefined }, { ...entity, number1: null })
+      ).toBeFalsy();
       expect(processor.getChanges(array, array)).toBeFalsy();
     });
 
@@ -319,7 +322,7 @@ describe("PostProcessor", () => {
 type Entity = {
   __id: Uid;
   __type: string;
-  number1?: number;
+  number1?: number | null;
   number2?: number;
   entity1?: Entity;
   entity2?: Entity;

@@ -184,8 +184,6 @@ export default class PostProcessor {
           }
         }
       } else {
-        if (initialValue == null) return;
-
         if (isValueType(initialValue)) {
           const assign: Assign<TEntity[typeof key]> = {
             type: "assign",
