@@ -1,4 +1,4 @@
-import { RecordKey, KeyOf, ValueType } from "@/utilities/types";
+import { Key, ValueType } from "@/utilities/types";
 
 export interface Assign<TValue> {
   type: "assign";
@@ -10,9 +10,19 @@ export interface Add<TValue> {
   value: TValue;
 }
 
+export interface AddAll<TValue> {
+  type: "add*";
+  value: TValue;
+}
+
 export interface Edit<TValue> {
   type: "edit";
-  value: Diff<TValue>;
+  value: Changes<TValue>;
+}
+
+export interface Move<TKey> {
+  type: "move";
+  key: TKey;
 }
 
 export interface Remove<TValue> {
@@ -20,48 +30,53 @@ export interface Remove<TValue> {
   value: TValue;
 }
 
-export interface Move<TKey extends RecordKey> {
-  type: "move";
-  key: TKey;
+export interface RemoveAll<TValue> {
+  type: "remove*";
+  value: TValue;
 }
 
-export interface EditAndMove<TValue, TKey extends RecordKey> {
-  type: "edit+move";
-  value: Diff<TValue>;
-  key: TKey;
-}
+export type EntityChanges<TValue extends Record<Key, unknown>, TKey extends Key> =
+  | Add<TValue>
+  | Edit<TValue>
+  | Move<TKey>
+  | Remove<TValue>;
 
-export type RecordFieldChange<
-  TRecord extends Record<RecordKey, unknown>,
-  TKey extends keyof TRecord
-> = TRecord[TKey] extends ValueType
-  ? Assign<TRecord[TKey]>
-  : TRecord[TKey] extends Array<infer _>
-  ? Add<TRecord[TKey]> | Edit<TRecord[TKey]> | Remove<TRecord[TKey]>
-  :
-      | Add<TRecord[TKey]>
-      | Edit<TRecord[TKey]>
-      | Remove<TRecord[TKey]>
-      | Move<KeyOf<TRecord, TRecord[TKey]>>
-      | EditAndMove<TRecord[TKey], KeyOf<TRecord, TRecord[TKey]>>;
+export type MaybeEntityChanges<TValue, TKey extends Key> = TValue extends Record<Key, unknown>
+  ? EntityChanges<TValue, TKey>[]
+  : never;
 
-export type RecordDiff<TRecord extends Record<RecordKey, unknown>> = {
-  [TKey in keyof TRecord]?: RecordFieldChange<TRecord, TKey>[];
+export type EntityChangesRecord<TValue extends Record<Key, unknown>, TKey extends Key> = Record<
+  TKey,
+  EntityChanges<TValue, TKey>[]
+>;
+
+export type MaybeEntityChangesRecord<TValue, TKey extends Key> = TValue extends Record<Key, unknown>
+  ? Record<TKey, MaybeEntityChanges<TValue, TKey>>
+  : never;
+
+export type ArrayChanges<TItem extends Record<Key, unknown>> =
+  | AddAll<TItem[]>
+  | Edit<TItem[]>
+  | RemoveAll<TItem[]>;
+
+export type MaybeArrayChanges<TItem> = TItem extends Record<Key, unknown>
+  ? ArrayChanges<TItem>
+  : never;
+
+export type FieldChanges<TValue, TKey extends Key> = TValue extends ValueType
+  ? Assign<TValue>
+  : TValue extends Array<infer TItem>
+  ? MaybeArrayChanges<TItem>
+  : MaybeEntityChanges<TValue, TKey>;
+
+export type FieldChangesRecord<TValue extends Record<Key, unknown>> = {
+  [TKey in keyof TValue]?: FieldChanges<TValue[TKey], TKey>;
 };
 
-export type ArrayItemChange<TRecord extends Record<RecordKey, unknown>> =
-  | Add<TRecord>
-  | Edit<TRecord>
-  | Move<number>
-  | EditAndMove<TRecord, number>
-  | Remove<TRecord>;
-
-export type ArrayDiff<TRecord extends Record<RecordKey, unknown>> = Map<number, ArrayItemChange<TRecord>[]>;
-
-export type Diff<TValue> = TValue extends Record<RecordKey, infer _>
-  ? RecordDiff<TValue>
-  : TValue extends Array<infer TRecord>
-  ? TRecord extends Record<RecordKey, infer _>
-    ? ArrayDiff<TRecord>
-    : never
+export type MaybeFieldChangesRecord<TValue> = TValue extends Record<Key, unknown>
+  ? FieldChangesRecord<TValue>
   : never;
+
+export type Changes<TValue> = TValue extends Array<infer TItem>
+  ? MaybeEntityChangesRecord<TItem, number>
+  : MaybeFieldChangesRecord<TValue>;

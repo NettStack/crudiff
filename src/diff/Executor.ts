@@ -1,65 +1,64 @@
 import { isValueType } from "@/utilities/reflection";
-import { ID, RecordKey } from "@/utilities/types";
+import { Key, Uid } from "@/utilities/types";
 import {
   Add,
-  ArrayDiff,
-  ArrayItemChange,
+  AddAll,
   Assign,
-  Diff,
+  Changes,
   Edit,
-  EditAndMove,
+  EntityChanges,
+  EntityChangesRecord,
+  FieldChanges,
+  FieldChangesRecord,
   Move,
-  RecordDiff,
-  RecordFieldChange,
   Remove,
+  RemoveAll,
 } from "./types";
 
-export type SchemaId = string;
-
 export interface ExecutionOptions {
-  getId(value: unknown): ID;
+  getId(value: unknown): Uid;
   getKeys(value: unknown): string[];
 }
 
 export default class Executor {
-  getDiff<TValue>(initial: TValue, current: TValue): Diff<TValue> | undefined {
+  getChanges<TValue>(initial: TValue, current: TValue): Changes<TValue> | undefined {
     if (isValueType(initial) || isValueType(current)) throw new Error("Value types not allowed.");
 
     if (Array.isArray(initial) && Array.isArray(current))
-      return this.getArraysDiff(initial, current) as Diff<TValue> | undefined;
+      return this.getArrayChanges(initial, current) as Changes<TValue> | undefined;
 
-    return this.getRecordsDiff(
+    return this.getEntityChanges(
       initial as { [TKey in keyof TValue]: TValue[TKey] },
       current as { [TKey in keyof TValue]: TValue[TKey] }
-    ) as Diff<TValue> | undefined;
+    ) as Changes<TValue> | undefined;
   }
 
-  private getRecordsDiff<TRecord extends Record<RecordKey, unknown>>(
+  private getEntityChanges<TRecord extends Record<Key, unknown>>(
     initial: TRecord,
     current: TRecord
-  ): RecordDiff<TRecord> | undefined {
+  ): FieldChangesRecord<TRecord> | undefined {
     if (initial === current) return undefined;
 
     const keys: (keyof TRecord)[] = this.options.getKeys(initial);
 
     if (!keys.length) throw new Error(`Keys not returned for: ${JSON.stringify(initial)}.`);
 
-    const diff: RecordDiff<TRecord> = {};
+    const fieldChangesRecord: FieldChangesRecord<TRecord> = {};
 
-    this.getRecordFieldsChanges<TRecord>(keys, initial, current, diff);
-    this.getNonRecordFieldsChanges<TRecord>(keys, initial, current, diff);
+    this.getEntityTypedFieldsChanges<TRecord>(keys, initial, current, fieldChangesRecord);
+    this.getNonEntityTypedFieldsChanges<TRecord>(keys, initial, current, fieldChangesRecord);
 
-    return Object.keys(diff).length ? diff : undefined;
+    return Object.keys(fieldChangesRecord).length ? fieldChangesRecord : undefined;
   }
 
-  private getRecordFieldsChanges<TRecord extends Record<RecordKey, unknown>>(
+  private getEntityTypedFieldsChanges<TRecord extends Record<Key, unknown>>(
     keys: (keyof TRecord)[],
     initial: TRecord,
     current: TRecord,
-    diff: RecordDiff<TRecord>
+    fieldChangesRecord: FieldChangesRecord<TRecord>
   ) {
-    const initialLookup = new Map<ID, keyof TRecord>();
-    const currentLookup = new Map<ID, keyof TRecord>();
+    const initialLookup = new Map<Uid, keyof TRecord>();
+    const currentLookup = new Map<Uid, keyof TRecord>();
 
     keys.forEach((key) => {
       let value: TRecord[typeof key];
@@ -70,7 +69,8 @@ export default class Executor {
         const id = this.options.getId(value);
 
         if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(value)}.`);
-        if (initialLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
+        if (initialLookup.has(id))
+          throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
 
         initialLookup.set(id, key);
       }
@@ -81,7 +81,8 @@ export default class Executor {
         const id = this.options.getId(value);
 
         if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(value)}.`);
-        if (currentLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
+        if (currentLookup.has(id))
+          throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
 
         currentLookup.set(id, key);
       }
@@ -96,27 +97,31 @@ export default class Executor {
           value: initial[initialKey],
         };
 
-        includeRecordChange(diff, initialKey, remove as RecordFieldChange<TRecord, typeof initialKey>);
+        includeFieldChanges(fieldChangesRecord, initialKey, [remove] as FieldChanges<
+          TRecord[typeof initialKey],
+          keyof TRecord
+        >);
       } else {
         let edit: Edit<TRecord[typeof initialKey]> | undefined;
         let move: Move<typeof currentKey> | undefined;
 
         if (initialKey !== currentKey) move = { type: "move", key: currentKey };
 
-        const valueDiff = this.getDiff(initial[initialKey], current[currentKey]);
+        const valueFieldChangesRecord = this.getChanges(initial[initialKey], current[currentKey]);
 
-        if (valueDiff) edit = { type: "edit", value: valueDiff };
+        if (valueFieldChangesRecord) edit = { type: "edit", value: valueFieldChangesRecord };
 
-        if (edit && move) {
-          const editAndMove: EditAndMove<TRecord[typeof initialKey], typeof currentKey> = {
-            type: "edit+move",
-            key: move.key,
-            value: edit.value,
-          };
+        if (edit)
+          includeFieldChanges(fieldChangesRecord, initialKey, [edit] as FieldChanges<
+            TRecord[typeof initialKey],
+            keyof TRecord
+          >);
 
-          includeRecordChange(diff, initialKey, editAndMove as RecordFieldChange<TRecord, typeof initialKey>);
-        } else if (edit) includeRecordChange(diff, initialKey, edit as RecordFieldChange<TRecord, typeof initialKey>);
-        else if (move) includeRecordChange(diff, initialKey, move as RecordFieldChange<TRecord, typeof initialKey>);
+        if (move)
+          includeFieldChanges(fieldChangesRecord, initialKey, [move] as FieldChanges<
+            TRecord[typeof initialKey],
+            keyof TRecord
+          >);
       }
     });
 
@@ -127,16 +132,19 @@ export default class Executor {
           value: current[currentKey],
         };
 
-        includeRecordChange(diff, currentKey, add as RecordFieldChange<TRecord, typeof currentKey>);
+        includeFieldChanges(fieldChangesRecord, currentKey, [add] as FieldChanges<
+          TRecord[typeof currentKey],
+          keyof TRecord
+        >);
       }
     });
   }
 
-  private getNonRecordFieldsChanges<TRecord extends Record<RecordKey, unknown>>(
+  private getNonEntityTypedFieldsChanges<TRecord extends Record<Key, unknown>>(
     keys: (keyof TRecord)[],
     initial: TRecord,
     current: TRecord,
-    diff: RecordDiff<TRecord>
+    fieldChangesRecord: FieldChangesRecord<TRecord>
   ) {
     keys.forEach((key) => {
       const initialValue = initial[key];
@@ -152,14 +160,18 @@ export default class Executor {
               value: current[key],
             };
 
-            includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, keyof TRecord>);
+            includeFieldChanges(
+              fieldChangesRecord,
+              key,
+              assign as FieldChanges<TRecord[typeof key], keyof TRecord>
+            );
           } else if (Array.isArray(initialValue)) {
-            const remove: Remove<TRecord[typeof key]> = {
-              type: "remove",
+            const remove: RemoveAll<TRecord[typeof key]> = {
+              type: "remove*",
               value: initialValue,
             };
 
-            includeRecordChange(diff, key, remove as RecordFieldChange<TRecord, typeof key>);
+            includeFieldChanges(fieldChangesRecord, key, remove as FieldChanges<[], typeof key>);
           }
         } else {
           if (isValueType(initialValue)) {
@@ -168,17 +180,21 @@ export default class Executor {
               value: currentValue,
             };
 
-            includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, typeof key>);
+            includeFieldChanges(
+              fieldChangesRecord,
+              key,
+              assign as FieldChanges<TRecord[typeof key], typeof key>
+            );
           } else if (Array.isArray(initialValue)) {
-            const valueDiff = this.getDiff(initialValue, currentValue);
+            const valueEntityChangesRecord = this.getChanges(initialValue, currentValue);
 
-            if (valueDiff) {
+            if (valueEntityChangesRecord) {
               const edit: Edit<TRecord[typeof key]> = {
                 type: "edit",
-                value: valueDiff,
+                value: valueEntityChangesRecord,
               };
 
-              includeRecordChange(diff, key, edit as RecordFieldChange<TRecord, typeof key>);
+              includeFieldChanges(fieldChangesRecord, key, edit as FieldChanges<[], typeof key>);
             }
           }
         }
@@ -189,33 +205,38 @@ export default class Executor {
             value: currentValue,
           };
 
-          includeRecordChange(diff, key, assign as RecordFieldChange<TRecord, typeof key>);
+          includeFieldChanges(
+            fieldChangesRecord,
+            key,
+            assign as FieldChanges<TRecord[typeof key], typeof key>
+          );
         } else if (Array.isArray(currentValue)) {
-          const add: Add<TRecord[typeof key]> = {
-            type: "add",
+          const add: AddAll<TRecord[typeof key]> = {
+            type: "add*",
             value: currentValue,
           };
 
-          includeRecordChange(diff, key, add as RecordFieldChange<TRecord, typeof key>);
+          includeFieldChanges(fieldChangesRecord, key, add as FieldChanges<[], typeof key>);
         }
       }
     });
   }
 
-  private getArraysDiff<TRecord extends Record<RecordKey, unknown>>(
-    initial: TRecord[],
-    current: TRecord[]
-  ): ArrayDiff<TRecord> | undefined {
+  private getArrayChanges<TItem extends Record<Key, unknown>>(
+    initial: TItem[],
+    current: TItem[]
+  ): EntityChangesRecord<TItem, number> | undefined {
     if (initial === current) return undefined;
 
-    const initialLookup = new Map<ID, number>();
-    const currentLookup = new Map<ID, number>();
+    const initialLookup = new Map<Uid, number>();
+    const currentLookup = new Map<Uid, number>();
 
     initial.forEach((value, index) => {
       const id = this.options.getId(value);
 
       if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(value)}.`);
-      if (initialLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
+      if (initialLookup.has(id))
+        throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
 
       initialLookup.set(id, index);
     });
@@ -224,68 +245,80 @@ export default class Executor {
       const id = this.options.getId(value);
 
       if (id == null) throw new Error(`ID not returned for: ${JSON.stringify(value)}.`);
-      if (currentLookup.has(id)) throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
+      if (currentLookup.has(id))
+        throw new Error(`ID ${id} duplicated by: ${JSON.stringify(value)}.`);
 
       currentLookup.set(id, index);
     });
 
-    const diff: ArrayDiff<TRecord> = new Map();
+    const entityChangesRecord: EntityChangesRecord<TItem, number> = {};
 
     initialLookup.forEach((initialIndex, id) => {
       const currentIndex = currentLookup.get(id);
 
       if (currentIndex == null) {
-        includeArrayChange(diff, initialIndex, { type: "remove", value: initial[initialIndex] });
+        includeItemChanges(entityChangesRecord, initialIndex, {
+          type: "remove",
+          value: initial[initialIndex],
+        });
       } else {
-        let edit: Edit<TRecord> | undefined;
+        let edit: Edit<TItem> | undefined;
         let move: Move<number> | undefined;
 
         if (initialIndex !== currentIndex) move = { type: "move", key: currentIndex };
 
-        const value = this.getDiff(initial[initialIndex], current[currentIndex]);
+        const value = this.getChanges(initial[initialIndex], current[currentIndex]);
 
         if (value) edit = { type: "edit", value };
 
-        if (edit && move) includeArrayChange(diff, initialIndex, { ...edit, ...move, type: "edit+move" });
-        else if (edit) includeArrayChange(diff, initialIndex, edit);
-        else if (move) includeArrayChange(diff, initialIndex, move);
+        if (edit) includeItemChanges(entityChangesRecord, initialIndex, edit);
+        if (move) includeItemChanges(entityChangesRecord, initialIndex, move);
       }
     });
 
     currentLookup.forEach((currentIndex, id) => {
       if (!initialLookup.has(id))
-        includeArrayChange(diff, currentIndex, {
+        includeItemChanges(entityChangesRecord, currentIndex, {
           type: "add",
           value: current[currentIndex],
         });
     });
 
-    return diff.size ? diff : undefined;
+    return Object.keys(entityChangesRecord).length ? entityChangesRecord : undefined;
   }
 
   constructor(readonly options: ExecutionOptions) {}
 }
 
-function includeArrayChange<TRecord extends Record<RecordKey, unknown>>(
-  diff: ArrayDiff<TRecord>,
+function includeItemChanges<TRecord extends Record<Key, unknown>>(
+  record: EntityChangesRecord<TRecord, number>,
   index: number,
-  change: ArrayItemChange<TRecord>
+  changes: EntityChanges<TRecord, number>
 ) {
-  let changeSet = diff.get(index);
+  let changesArray = record[index];
 
-  if (changeSet == null) diff.set(index, (changeSet = []));
+  if (changesArray == null) record[index] = changesArray = [];
 
-  changeSet.push(change);
+  changesArray.push(changes);
 }
 
-function includeRecordChange<TRecord extends Record<RecordKey, unknown>>(
-  diff: RecordDiff<TRecord>,
-  key: keyof TRecord,
-  change: RecordFieldChange<TRecord, typeof key>
+function includeFieldChanges<TRecord extends Record<TKey, unknown>, TKey extends keyof TRecord>(
+  record: FieldChangesRecord<TRecord>,
+  key: TKey,
+  changes: FieldChanges<TRecord[TKey], TKey>
 ) {
-  let changeSet = diff[key];
+  if (Array.isArray(changes)) {
+    let changesArray = record[key];
 
-  if (changeSet == null) diff[key] = changeSet = [];
+    if (isEntityChangesArray(changesArray)) changesArray.push(...changes);
+    else record[key] = changes;
+  } else {
+    record[key] = changes;
+  }
+}
 
-  if (!changeSet.find((e) => e.type === change.type)) changeSet.push(change);
+function isEntityChangesArray<TValue extends Record<Key, unknown>, TKey extends Key>(
+  changes: unknown
+): changes is EntityChanges<TValue, TKey>[] {
+  return changes != null && Array.isArray(changes);
 }

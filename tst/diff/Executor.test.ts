@@ -1,6 +1,6 @@
 import { Executor } from "@/diff";
-import { Add, ArrayItemChange, Edit, EditAndMove, Move, RecordFieldChange, Remove } from "@/diff/types";
-import { ID, KeyOf } from "@/utilities/types";
+import { Add, Edit, FieldChanges, Move, Remove } from "@/diff/types";
+import { KeyOf, Uid } from "@/utilities/types";
 
 describe("Executor", () => {
   const typeName = "TestRecord";
@@ -28,40 +28,40 @@ describe("Executor", () => {
           ],
   });
 
-  describe("getDiff", () => {
+  describe("getChanges", () => {
     it("throws when trying to diff value types", () => {
-      expect(() => executor.getDiff<any>("", {})).toThrow();
-      expect(() => executor.getDiff<any>({}, "")).toThrow();
+      expect(() => executor.getChanges<any>("", {})).toThrow();
+      expect(() => executor.getChanges<any>({}, "")).toThrow();
     });
 
     it("throws when record keys not returned", () => {
-      expect(() => executor.getDiff<any>({}, {})).toThrow();
+      expect(() => executor.getChanges<any>({}, {})).toThrow();
     });
 
     it("throws when record id is null", () => {
       expect(() =>
-        executor.getDiff<Partial<DiffTestRecord>>(
+        executor.getChanges<Partial<DiffTestRecord>>(
           { __type: typeName, record1: { __id: 1, __type: typeName } },
           { __type: typeName, record1: { __id: null!, __type: typeName } }
         )
       ).toThrow();
 
       expect(() =>
-        executor.getDiff<Partial<DiffTestRecord>>(
+        executor.getChanges<Partial<DiffTestRecord>>(
           { __type: typeName, record1: { __id: null!, __type: typeName } },
           { __type: typeName, record1: { __id: 1, __type: typeName } }
         )
       ).toThrow();
 
       expect(() =>
-        executor.getDiff<Partial<DiffTestRecord>[]>(
+        executor.getChanges<Partial<DiffTestRecord>[]>(
           [{ __id: 1, __type: typeName }],
           [{ __id: null!, __type: typeName }]
         )
       ).toThrow();
 
       expect(() =>
-        executor.getDiff<Partial<DiffTestRecord>[]>(
+        executor.getChanges<Partial<DiffTestRecord>[]>(
           [{ __id: null!, __type: typeName }],
           [{ __id: 1, __type: typeName }]
         )
@@ -70,21 +70,29 @@ describe("Executor", () => {
 
     it("throws when record id is duplicated", () => {
       expect(() =>
-        executor.getDiff<Partial<DiffTestRecord>>(
-          { __type: typeName, record1: { __id: 1, __type: typeName }, record2: { __id: 1, __type: typeName } },
+        executor.getChanges<Partial<DiffTestRecord>>(
+          {
+            __type: typeName,
+            record1: { __id: 1, __type: typeName },
+            record2: { __id: 1, __type: typeName },
+          },
           { __type: typeName }
         )
       ).toThrow();
 
       expect(() =>
-        executor.getDiff<Partial<DiffTestRecord>>(
+        executor.getChanges<Partial<DiffTestRecord>>(
           { __type: typeName },
-          { __type: typeName, record1: { __id: 1, __type: typeName }, record2: { __id: 1, __type: typeName } }
+          {
+            __type: typeName,
+            record1: { __id: 1, __type: typeName },
+            record2: { __id: 1, __type: typeName },
+          }
         )
       ).toThrow();
 
       expect(() =>
-        executor.getDiff<Partial<DiffTestRecord>[]>(
+        executor.getChanges<Partial<DiffTestRecord>[]>(
           [
             { __id: 1, __type: typeName },
             { __id: 1, __type: typeName },
@@ -94,7 +102,7 @@ describe("Executor", () => {
       ).toThrow();
 
       expect(() =>
-        executor.getDiff<Partial<DiffTestRecord>[]>(
+        executor.getChanges<Partial<DiffTestRecord>[]>(
           [{ __type: typeName, __id: 1 }],
           [
             { __id: 1, __type: typeName },
@@ -107,8 +115,8 @@ describe("Executor", () => {
     it("detects when there are no changes", () => {
       const record = {};
       const array: any[] = [];
-      expect(executor.getDiff(record, record)).toBeFalsy();
-      expect(executor.getDiff(array, array)).toBeFalsy();
+      expect(executor.getChanges(record, record)).toBeFalsy();
+      expect(executor.getChanges(array, array)).toBeFalsy();
     });
 
     it("detects object changes", () => {
@@ -152,108 +160,94 @@ describe("Executor", () => {
         record8: { __id: "record7", __type: typeName, number1: 7 },
       };
 
-      const diff = executor.getDiff(initial, current);
+      const diff = executor.getChanges(initial, current);
 
       expect(diff).toBeTruthy();
 
       expect(diff?.record1).toBeFalsy();
-      expect(diff?.record2).toEqual<RecordFieldChange<DiffTestRecord, "record2">[]>([
+      expect(diff?.record2).toEqual<FieldChanges<DiffTestRecord["record3"], keyof DiffTestRecord>>([
         {
           type: "add",
-          value: current.record2,
+          value: current.record2!,
         },
       ]);
-      expect(diff?.record3).toEqual<RecordFieldChange<DiffTestRecord, "record3">[]>([
+      expect(diff?.record3).toEqual<FieldChanges<DiffTestRecord["record3"], keyof DiffTestRecord>>([
         {
           type: "edit",
           value: {
-            number1: [
-              {
-                type: "assign",
-                value: 1,
-              },
-            ],
+            number1: {
+              type: "assign",
+              value: 1,
+            },
           },
         },
       ]);
-      expect(diff?.record4).toEqual<RecordFieldChange<DiffTestRecord, "record4">[]>([
+      expect(diff?.record4).toEqual<FieldChanges<DiffTestRecord["record4"], keyof DiffTestRecord>>([
         {
           type: "move",
           key: "record5",
         },
       ]);
-      expect(diff?.record5).toEqual<RecordFieldChange<DiffTestRecord, "record5">[]>([
+      expect(diff?.record5).toEqual<FieldChanges<DiffTestRecord["record5"], keyof DiffTestRecord>>([
         {
           type: "move",
           key: "record4",
         },
       ]);
-      expect(diff?.record6).toEqual<RecordFieldChange<DiffTestRecord, "record6">[]>([
+      expect(diff?.record6).toEqual<FieldChanges<DiffTestRecord["record6"], keyof DiffTestRecord>>([
         {
           type: "remove",
-          value: initial.record6,
+          value: initial.record6!,
         },
       ]);
-      expect(diff?.record7).toEqual<RecordFieldChange<DiffTestRecord, "record7">[]>([
+      expect(diff?.record7).toEqual<FieldChanges<DiffTestRecord["record7"], keyof DiffTestRecord>>([
         {
-          type: "edit+move",
+          type: "edit",
           value: {
-            number1: [
-              {
-                type: "assign",
-                value: 7,
-              },
-            ],
+            number1: {
+              type: "assign",
+              value: 7,
+            },
           },
+        },
+        {
+          type: "move",
           key: "record8",
         },
         {
           type: "add",
-          value: current.record7,
+          value: current.record7!,
         },
       ]);
 
-      expect(diff?.number1).toEqual<RecordFieldChange<DiffTestRecord, "number1">[]>([
-        {
-          type: "assign",
-          value: current.number1,
-        },
-      ]);
-      expect(diff?.number2).toEqual<RecordFieldChange<DiffTestRecord, "number2">[]>([
-        {
-          type: "assign",
-          value: current.number2,
-        },
-      ]);
+      expect(diff?.number1).toEqual<FieldChanges<DiffTestRecord["number1"], keyof DiffTestRecord>>({
+        type: "assign",
+        value: current.number1,
+      });
+      expect(diff?.number2).toEqual<FieldChanges<DiffTestRecord["number2"], keyof DiffTestRecord>>({
+        type: "assign",
+        value: current.number2,
+      });
       expect(diff?.array1).toBeFalsy();
-      expect(diff?.array2).toEqual<RecordFieldChange<DiffTestRecord, "array2">[]>([
-        {
-          type: "add",
-          value: current.array2,
+      expect(diff?.array2).toEqual<FieldChanges<TestRecord["array2"], keyof DiffTestRecord>>({
+        type: "add*",
+        value: current.array2!,
+      });
+      expect(diff?.array3).toEqual<FieldChanges<DiffTestRecord["array3"], keyof DiffTestRecord>>({
+        type: "edit",
+        value: {
+          "0": [
+            {
+              type: "remove",
+              value: initial.array3![0],
+            },
+          ],
         },
-      ]);
-      expect(diff?.array3).toEqual<RecordFieldChange<DiffTestRecord, "array3">[]>([
-        {
-          type: "edit",
-          value: new Map<number, ArrayItemChange<DiffTestRecord>[]>([
-            [
-              0,
-              [
-                {
-                  type: "remove",
-                  value: initial.array3![0],
-                },
-              ],
-            ],
-          ]),
-        },
-      ]);
-      expect(diff?.array4).toEqual<RecordFieldChange<DiffTestRecord, "array3">[]>([
-        {
-          type: "remove",
-          value: initial.array4,
-        },
-      ]);
+      });
+      expect(diff?.array4).toEqual<FieldChanges<DiffTestRecord["array4"], keyof DiffTestRecord>>({
+        type: "remove*",
+        value: initial.array4!,
+      });
     });
 
     it("detects array changes", () => {
@@ -273,48 +267,48 @@ describe("Executor", () => {
         { __type: typeName, __id: "added", number1: 8 },
       ];
 
-      const diff = executor.getDiff(initial, current);
+      const diff = executor.getChanges(initial, current);
 
       expect(diff).toBeTruthy();
 
-      expect(diff?.get(0)).toBeFalsy();
+      expect(diff?.[0]).toBeFalsy();
 
-      expect(diff?.get(1)?.[0]).toEqual<Edit<DiffTestRecord>>({
+      expect(diff?.[1]?.[0]).toEqual<Edit<DiffTestRecord>>({
         type: "edit",
         value: {
-          number1: [
-            {
-              type: "assign",
-              value: 6,
-            },
-          ],
+          number1: {
+            type: "assign",
+            value: 6,
+          },
         },
       });
 
-      expect(diff?.get(2)?.[0]).toEqual<Move<number>>({
+      expect(diff?.[2]?.[0]).toEqual<Move<number>>({
         type: "move",
         key: 3,
       });
 
-      expect(diff?.get(3)?.[0]).toEqual<EditAndMove<DiffTestRecord, number>>({
-        type: "edit+move",
+      expect(diff?.[3]?.[0]).toEqual<Edit<DiffTestRecord>>({
+        type: "edit",
         value: {
-          number1: [
-            {
-              type: "assign",
-              value: 7,
-            },
-          ],
+          number1: {
+            type: "assign",
+            value: 7,
+          },
         },
+      });
+
+      expect(diff?.[3]?.[1]).toEqual<Move<number>>({
+        type: "move",
         key: 2,
       });
 
-      expect(diff?.get(4)?.[0]).toEqual<Remove<DiffTestRecord>>({
+      expect(diff?.[4]?.[0]).toEqual<Remove<DiffTestRecord>>({
         type: "remove",
         value: initial[4],
       });
 
-      expect(diff?.get(4)?.[1]).toEqual<Add<DiffTestRecord>>({
+      expect(diff?.[4]?.[1]).toEqual<Add<DiffTestRecord>>({
         type: "add",
         value: current[4],
       });
@@ -339,7 +333,7 @@ type TestRecord = {
   array4?: TestRecord[];
 };
 
-type DiffTestRecord = TestRecord & { __id: ID; __type: string } & Omit<
+type DiffTestRecord = TestRecord & { __id: Uid; __type: string } & Omit<
     TestRecord,
     KeyOf<TestRecord, TestRecord> | KeyOf<TestRecord, TestRecord[]>
   > & {

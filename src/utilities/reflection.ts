@@ -1,4 +1,6 @@
-export function isValueType<TValue>(value: TValue): boolean {
+import { ValueType } from "./types";
+
+export function isValueType(value: any): value is ValueType {
   const type = typeof value;
 
   return (
