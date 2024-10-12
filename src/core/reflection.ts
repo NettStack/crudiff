@@ -1,4 +1,4 @@
-import { ValueType } from "./types";
+import { ValueType } from "./models";
 
 export function isValueType(value: any): value is ValueType {
   const type = typeof value;

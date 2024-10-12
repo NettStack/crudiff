@@ -1,2 +1,2 @@
-export * as Diff from "./diff";
-export * as Utilities from "./utilities";
+export * as Core from "./core";
+export * as PostProcessing from "./postProcessing";

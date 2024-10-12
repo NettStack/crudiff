@@ -1,4 +1,4 @@
-import { Key, ValueType } from "@/utilities/types";
+import { Key, ValueType } from "@/core/models";
 
 export interface Assign<TValue> {
   type: "assign";
@@ -11,7 +11,7 @@ export interface Add<TValue> {
 }
 
 export interface AddAll<TValue> {
-  type: "add*";
+  type: "add-all";
   value: TValue;
 }
 
@@ -31,7 +31,7 @@ export interface Remove<TValue> {
 }
 
 export interface RemoveAll<TValue> {
-  type: "remove*";
+  type: "remove-all";
   value: TValue;
 }
 
